@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三位數以內減法</title>
+    <style>
+         .vertical-calc {
+		    display: inline-block;
+            text-align: left;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .calc-box {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .input-box {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .borrow-box {
+            display: inline-block;
+            width: 50px;
+            height: 30px;
+            text-align: center;
+            font-size: 18px;
+            color: red;
+        }
+
+        .btn {
+            margin-top: 10px;
+            display: block;
+        }
+
+        #progress {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>三位數以內減法</h1>
+    <form id="gameForm">
+        <label for="name">姓名：</label>
+        <input type="text" id="name" required><br><br>
+
+        <label for="questionCount">題目數量：</label>
+        <input type="number" id="questionCount" min="1" max="10" required><br><br>
+
+        <label for="questionType">題目類型：</label>
+        <select id="questionType" required>
+            <option value="混和">混和</option>
+            <option value="退位">退位</option>
+            <option value="不退位">不退位</option>
+        </select><br><br>
+
+        <button type="button" onclick="startGame()">開始遊戲</button>
+    </form>
+
+    <div id="questionSection" style="display:none;">
+        <p id="progress"></p>
+        <div class="vertical-calc" id="calculationDisplay"></div>
+        <div class="result-section">
+            <input type="number" id="hundreds" class="input-box">
+            <input type="number" id="tens" class="input-box">
+            <input type="number" id="ones" class="input-box">
+        </div>
+        <button type="button" onclick="submitAnswer()" class="btn">提交答案</button>
+        <button type="button" onclick="pauseGame()" class="btn">暫停</button>
+        <p id="feedback"></p>
+        <p id="timer">已用時間：0 秒</p>
+    </div>
+	
+	
+
+    <script>
+        let name = '';
+        let questionCount = 0;
+        let questionType = '';
+        let currentQuestion = 0;
+        let correctAnswers = 0;
+        let startTime = 0;
+        let totalTime = 0;
+        let timerInterval = null;
+        let paused = false;
+        let questions = [];
+
+        function startGame() {
+            name = document.getElementById('name').value;
+            questionCount = parseInt(document.getElementById('questionCount').value);
+            questionType = document.getElementById('questionType').value;
+
+            if (!name || questionCount <= 0) {
+                alert('請輸入正確的資料');
+                return;
+            }
+
+            document.getElementById('gameForm').style.display = 'none';
+            document.getElementById('questionSection').style.display = 'block';
+
+            startTime = new Date();
+            generateQuestions();
+            showNextQuestion();
+            startTimer();
+        }
+
+        function generateQuestions() {
+            for (let i = 0; i < questionCount; i++) {
+                let num1 = Math.floor(Math.random() * 900) + 100;
+                let num2 = Math.floor(Math.random() * 900) + 100;
+
+                // 確保被減數 num1 大於或等於 減數 num2
+                if (num1 < num2) {
+                    [num1, num2] = [num2, num1];
+                }
+
+                if (questionType === '退位') {
+                    // 如果是退位，則必須確保有退位情況
+                    if (num1 % 10 >= num2 % 10 || Math.floor((num1 % 100) / 10) >= Math.floor((num2 % 100) / 10)) {
+                        num1 = Math.floor(Math.random() * 900) + 100;
+                        num2 = Math.floor(Math.random() * num1); // 保證 num2 小於 num1
+                    }
+                }
+
+                if (questionType === '不退位') {
+                    // 如果是不退位，則確保每一位的數字可以直接減
+                    while (num1 % 10 < num2 % 10 || Math.floor((num1 % 100) / 10) < Math.floor((num2 % 100) / 10)) {
+                        num1 = Math.floor(Math.random() * 900) + 100;
+                        num2 = Math.floor(Math.random() * num1); // 保證 num2 小於 num1
+                    }
+                }
+
+                questions.push({ num1, num2 });
+            }
+        }
+
+        function showNextQuestion() {
+            if (currentQuestion < questionCount) {
+                const question = questions[currentQuestion];
+
+                // 更新進度
+                document.getElementById('progress').innerText = `第 ${currentQuestion + 1} 題 / 總 ${questionCount} 題`;
+
+                // 顯示題目
+                const num1Hundreds = Math.floor(question.num1 / 100);
+                const num1Tens = Math.floor((question.num1 % 100) / 10);
+                const num1Ones = question.num1 % 10;
+
+                const num2Hundreds = Math.floor(question.num2 / 100);
+                const num2Tens = Math.floor((question.num2 % 100) / 10);
+                const num2Ones = question.num2 % 10;
+
+                const borrowHtml = `
+                    <div class="borrow-box" id="borrowHundreds"></div>
+                    <div class="borrow-box" id="borrowTens"></div>
+                    <div class="borrow-box" id="borrowOnes"></div><br>
+                `;
+
+                const calcHtml = `
+                    ${borrowHtml}
+                    <div class="calc-box">${num1Hundreds}</div>
+                    <div class="calc-box">${num1Tens}</div>
+                    <div class="calc-box">${num1Ones}</div><br>
+                    <span>-</span>
+                    <div class="calc-box">${num2Hundreds}</div>
+                    <div class="calc-box">${num2Tens}</div>
+                    <div class="calc-box">${num2Ones}</div>
+                `;
+
+                document.getElementById('calculationDisplay').innerHTML = calcHtml;
+                
+				// 清空輸入欄位
+                document.getElementById('hundreds').value = '';
+                document.getElementById('tens').value = '';
+                document.getElementById('ones').value = '';
+				
+                // 處理退位邏輯
+                if (question.num1 % 10 < question.num2 % 10) {
+                    document.getElementById('borrowOnes').innerText = '1';
+                }
+                if (Math.floor((question.num1 % 100) / 10) < Math.floor((question.num2 % 100) / 10)) {
+                    document.getElementById('borrowTens').innerText = '1';
+                }
+            } else {
+                endGame();
+            }
+        }
+
+        function submitAnswer() {
+            const hundredsInput = parseInt(document.getElementById('hundreds').value);
+            const tensInput = parseInt(document.getElementById('tens').value);
+            const onesInput = parseInt(document.getElementById('ones').value);
+
+            const userAnswer = hundredsInput * 100 + tensInput * 10 + onesInput;
+
+            const question = questions[currentQuestion];
+            const correctAnswer = question.num1 - question.num2;
+
+            if (userAnswer === correctAnswer) {
+                document.getElementById('feedback').innerText = '正確答案！';
+                correctAnswers++;
+            } else {
+                document.getElementById('feedback').innerText = `錯誤答案，繼續加油！ 正確答案是 ${correctAnswer}。`;
+            }
+
+            currentQuestion++;
+            setTimeout(() => {
+                document.getElementById('feedback').innerText = '';
+                showNextQuestion();
+            }, 1000);
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if (!paused) {
+                    totalTime = Math.floor((new Date() - startTime) / 1000);
+                    document.getElementById('timer').innerText = `已用時間：${totalTime} 秒`;
+					}
+            }, 1000);
+		}
+
+        function pauseGame() {
+            paused = !paused;
+            if (paused) {
+                document.getElementById('feedback').innerText = '遊戲已暫停';
+                clearInterval(timerInterval);
+            } else {
+                document.getElementById('feedback').innerText = '';
+                startTimer();
+            }
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            document.getElementById('questionSection').style.display = 'none';
+            document.getElementById('feedback').innerText = `${name}，你答對了 ${correctAnswers} 題，共用了 ${totalTime} 秒。`;
+        }
+    </script>
+
+</body>
+</html>
